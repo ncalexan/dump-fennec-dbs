@@ -16,6 +16,7 @@ import os
 parser = argparse.ArgumentParser(description='Pull and dump Fennec databases from devices.')
 parser.add_argument('-v', dest='verbose', action='store_true', default=False, help='verbose output')
 parser.add_argument('-P', dest='profile', default='default', help='profile')
+parser.add_argument('-w', dest='whoami', default=None, help='run-as org.mozilla.fennec_${WHOAMI} (default \'username\')')
 parser.add_argument('-d', dest='db',    default=None, help='database to dump')
 parser.add_argument('-t', dest='table', default=None, help='table to dump')
 parser.add_argument('-k', dest='keep_db_files', action='store_true', default=False, help='keep database files in temp')
@@ -24,8 +25,11 @@ args = parser.parse_args(sys.argv[1:])
 DATETIME  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 TIMESTAMP = int(time.time())
 
-WHOAMI     = getpass.getuser()
-ROOT       = "/data/data/org.mozilla.fennec_%s/files/mozilla" % WHOAMI
+if args.whoami is None:
+    args.whoami = getpass.getuser() # username
+ROOT = "/data/data/org.mozilla.fennec_%s/files/mozilla" % args.whoami
+if args.verbose:
+    print >> sys.stderr, "Using root directory '%s'" % (ROOT)
 
 OUTPUT_DIR = "/sdcard"
 TEMP_DIR   = "/tmp"
@@ -71,7 +75,7 @@ HTML_FOOTER = """</body>
 HTML_TABLE_HEADER = """<table>"""
 HTML_TABLE_FOOTER = """</table>"""
 
-output = subprocess.check_output([ADB, 'shell', 'run-as org.mozilla.fennec_%s ls %s' % (WHOAMI, ROOT)])
+output = subprocess.check_output([ADB, 'shell', 'run-as org.mozilla.fennec_%s ls %s' % (args.whoami, ROOT)])
 
 MANGLED_PROFILE = None
 for line in output.split():
@@ -99,7 +103,7 @@ for FILE in FILES_TO_COPY:
     O = "%s/%s-%s" % (OUTPUT_DIR, FILE, TIMESTAMP) # file on device, pull-able
     L = "%s/%s-%s" % (TEMP_DIR, FILE, TIMESTAMP)   # file in temp storage on desktop
     try:
-        print >> sys.stderr, subprocess.check_output([ADB, "shell", "run-as org.mozilla.fennec_%s dd if=%s of=%s" % (WHOAMI, I, O)]) # move it to pull-able
+        print >> sys.stderr, subprocess.check_output([ADB, "shell", "run-as org.mozilla.fennec_%s dd if=%s of=%s" % (args.whoami, I, O)]) # move it to pull-able
         print >> sys.stderr, subprocess.check_output([ADB, "pull", O, L]) # pull it
     except:
         if args.verbose:
@@ -108,7 +112,7 @@ for FILE in FILES_TO_COPY:
 
     COPIED[FILE] = True
     try:
-        print >> sys.stderr, subprocess.check_output([ADB, "shell", "run-as org.mozilla.fennec_%s rm %s" % (WHOAMI, O)]) # delete pull-able file
+        print >> sys.stderr, subprocess.check_output([ADB, "shell", "run-as org.mozilla.fennec_%s rm %s" % (args.whoami, O)]) # delete pull-able file
     except:
         if args.verbose:
             print >> sys.stderr, "Couldn't rm %s" % O
