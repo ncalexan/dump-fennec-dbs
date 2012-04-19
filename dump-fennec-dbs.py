@@ -37,13 +37,14 @@ ADB        = "adb"
 SQLITE     = "sqlite3"
 
 TABLES = [
+    ("browser.db", "history"), # too much?
     ("browser.db", "bookmarks"),
+    ("browser.db", "bookmarks_tree"),
     ("tabs.db", "tabs"),
     ("tabs.db", "clients"),
     ("signons.sqlite", "moz_deleted_logins"),
     ("signons.sqlite", "moz_logins"),
     # ("permissions.db", "permissions"),
-    # ("browser.db", "history"), # too much?
     ("formhistory.sqlite", "moz_deleted_formhistory"),
     ("formhistory.sqlite", "moz_formhistory"), ]
 
@@ -128,7 +129,71 @@ for (db, table) in TABLES:
     if not COPIED.has_key(db):
         continue
 
-    SQL = "select * from %s;" % table
+    if (table == "bookmarks_tree"):
+        SQL = "select _id, guid, parent, position, title from bookmarks order by _id;"
+        try:
+            output = subprocess.check_output([SQLITE, "-csv", L, SQL])
+        except:
+            if args.verbose:
+                print >> sys.stderr, "Couldn't %s in db %s" % (table, db)
+            continue
+
+        class Node:
+            def __init__(self, _id, guid, parent, position, title, children=None):
+                self._id = _id
+                self.guid = guid
+                self.parent = parent
+                self.position = position
+                self.title = title
+                if children is None:
+                    children = []
+                self.children = children
+
+            def __repr__(self):
+                return "Node<%s,%s,%s,%s,%s,\n%s>" % (self._id, self.guid, self.parent, self.position, self.title, self.children)
+
+            def html(self, verbose=False):
+                print "<ul>"
+                print "<b>%s</b>" % self.title,
+                if verbose:
+                    print " androidID=%s guid=%s parentAndroidID=%s position=%s" % (self._id, self.guid, self.parent, self.position)
+                for child in self.children:
+                    child.html(verbose)
+                print "</ul>"
+
+        tree = {}
+        for rec in output.split("\n"):
+            if (not rec):
+                continue
+            _id, guid, parent, position, title = rec.split(",")
+            _id = int(_id)
+            if (_id == 0):
+                continue
+            parent = int(parent)
+            position = int(position)
+            children = []
+            x = Node(_id, guid, parent, position, title)
+            if (not tree.has_key(parent)):
+                tree[parent] = []
+            tree[parent].append(x)
+
+        root = Node(0, "places", 0, 0, "places", tree[0])
+        cs = [root]
+        while cs:
+            c = cs.pop()
+            if tree.has_key(c._id):
+                c.children = sorted(tree[c._id], key=lambda x: x.position)
+            else:
+                c.children = []
+            cs = cs + c.children
+
+        print "<div>"
+        print "<h2>%s</h2>" % SQL
+        root.html(args.verbose)
+        print "</div>"
+        continue
+
+    SQL = "select * from %s limit 200;" % table
     L = "%s/%s-%s" % (TEMP_DIR, db, TIMESTAMP)   # file in temp storage on desktop
     try:
         output = subprocess.check_output([SQLITE, "-html", "-header", L, SQL])
