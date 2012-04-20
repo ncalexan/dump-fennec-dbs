@@ -39,7 +39,7 @@ SQLITE     = "sqlite3"
 TABLES = [
     ("browser.db", "history"), # too much?
     ("browser.db", "bookmarks"),
-    ("browser.db", "bookmarks_tree"),
+    ("browser.db", "tree"),
     ("tabs.db", "tabs"),
     ("tabs.db", "clients"),
     ("signons.sqlite", "moz_deleted_logins"),
@@ -129,7 +129,7 @@ for (db, table) in TABLES:
     if not COPIED.has_key(db):
         continue
 
-    if (table == "bookmarks_tree"):
+    if (table == "tree"):
         SQL = "select _id, guid, parent, position, title from bookmarks order by _id;"
         try:
             output = subprocess.check_output([SQLITE, "-csv", L, SQL])
