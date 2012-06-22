@@ -28,7 +28,7 @@ TIMESTAMP = int(time.time())
 
 if args.whoami is None:
     args.whoami = getpass.getuser() # username
-ROOT = "/data/data/org.mozilla.fennec_%s/files/mozilla" % args.whoami
+ROOT = "/data/data/org.mozilla.fennec_%s" % args.whoami
 if args.verbose:
     print >> sys.stderr, "Using root directory '%s'" % (ROOT)
 
@@ -38,23 +38,28 @@ ADB        = "adb"
 SQLITE     = "sqlite3"
 
 TABLES = [
-    ("browser.db", "history"), # too much?
-    ("browser.db", "bookmarks"),
-    ("browser.db", "tree"),
-    ("tabs.db", "tabs"),
-    ("tabs.db", "clients"),
-    ("signons.sqlite", "moz_deleted_logins"),
-    ("signons.sqlite", "moz_logins"),
-    # ("permissions.db", "permissions"),
-    ("formhistory.sqlite", "moz_deleted_formhistory"),
-    ("formhistory.sqlite", "moz_formhistory"), ]
+    ("files/mozilla/%(PROFILE)s", "browser.db", "history"), # too much?
+    ("files/mozilla/%(PROFILE)s", "browser.db", "bookmarks"),
+    # ("files/mozilla/%(PROFILE)s", "browser.db", "tree"),
+    ("files/mozilla/%(PROFILE)s", "tabs.db", "tabs"),
+    ("files/mozilla/%(PROFILE)s", "tabs.db", "clients"),
+    ("files/mozilla/%(PROFILE)s", "signons.sqlite", "moz_deleted_logins"),
+    ("files/mozilla/%(PROFILE)s", "signons.sqlite", "moz_logins"),
+    # ("files/mozilla/%(PROFILE)s", "permissions.db", "permissions"),
+    ("files/mozilla/%(PROFILE)s", "formhistory.sqlite", "moz_deleted_formhistory"),
+    ("files/mozilla/%(PROFILE)s", "formhistory.sqlite", "moz_formhistory"),
+    ("databases", "clients_database", "clients"),
+    ("databases", "clients_database", "commands"),
+    ("databases", "history_extension_database", "HistoryExtension"), ]
 
 if args.db and args.table:
-    TABLES = [ (args.db, args.table) ]
+    TABLES = [ (d, args.db, args.table) ]
 elif args.db:
-    TABLES = [ (k, v) for (k, v) in TABLES if args.db in k ] # filter
+    args.db = args.db.lower()
+    TABLES = [ (d, k, v) for (d, k, v) in TABLES if args.db in k.lower() ] # filter
 elif args.table:
-    TABLES = [ (k, v) for (k, v) in TABLES if args.table in v ] # filter
+    args.table = args.table.lower()
+    TABLES = [ (d, k, v) for (d, k, v) in TABLES if args.table in v.lower() ] # filter
 
 HTML_HEADER = """<html>
 <head>
@@ -77,7 +82,7 @@ HTML_FOOTER = """</body>
 HTML_TABLE_HEADER = """<table>"""
 HTML_TABLE_FOOTER = """</table>"""
 
-output = subprocess.check_output([ADB, 'shell', 'run-as org.mozilla.fennec_%s ls %s' % (args.whoami, ROOT)])
+output = subprocess.check_output([ADB, 'shell', 'run-as org.mozilla.fennec_%s ls %s/files/mozilla' % (args.whoami, ROOT)])
 
 MANGLED_PROFILE = None
 for line in output.split():
@@ -95,13 +100,15 @@ else:
     if args.verbose:
         print >> sys.stderr, "Found profile '%s'" % (MANGLED_PROFILE)
 
-FILES_TO_COPY = set([ k for k, _ in TABLES ])
+subst_dict = { "PROFILE": MANGLED_PROFILE };
+FILES_TO_COPY = set([ (d % subst_dict, k) for d, k, _ in TABLES ])
+NUM_FILES_TO_COPY = len(FILES_TO_COPY)
 COPIED = {}
 
 if args.verbose:
-    print >> sys.stderr, "Copying %s files..." % len(FILES_TO_COPY)
-for FILE in FILES_TO_COPY:
-    I = "%s/%s/%s" % (ROOT, MANGLED_PROFILE, FILE) # file on device, not pull-able
+    print >> sys.stderr, "Copying %s files..." % NUM_FILES_TO_COPY
+for DIR, FILE in FILES_TO_COPY:
+    I = "%s/%s/%s" % (ROOT, DIR, FILE)             # file on device, not pull-able
     O = "%s/%s-%s" % (OUTPUT_DIR, FILE, TIMESTAMP) # file on device, pull-able
     L = "%s/%s-%s" % (TEMP_DIR, FILE, TIMESTAMP)   # file in temp storage on desktop
     try:
@@ -121,12 +128,12 @@ for FILE in FILES_TO_COPY:
         continue
 
 if args.verbose:
-    print >> sys.stderr, "Copying %s files... DONE" % len(FILES_TO_COPY)
-    print >> sys.stderr, "Copied %s of %s files." % (len(COPIED), len(FILES_TO_COPY))
+    print >> sys.stderr, "Copying %s files... DONE" % NUM_FILES_TO_COPY
+    print >> sys.stderr, "Copied %s of %s files." % (len(COPIED), NUM_FILES_TO_COPY)
 
 print HTML_HEADER
 
-for (db, table) in TABLES:
+for (directory, db, table) in TABLES:
     if not COPIED.has_key(db):
         continue
 
