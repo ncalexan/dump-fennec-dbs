@@ -204,7 +204,7 @@ for (db, table) in TABLES:
         continue
 
     print "<div>"
-    print "<h2>%s</h2>" % SQL
+    print "<h2>%s: %s</h2>" % (db, SQL)
     print HTML_TABLE_HEADER
     print output
     print HTML_TABLE_FOOTER
