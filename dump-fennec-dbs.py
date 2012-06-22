@@ -20,6 +20,7 @@ parser.add_argument('-w', dest='whoami', default=None, help='run-as org.mozilla.
 parser.add_argument('-d', dest='db',    default=None, help='database to dump')
 parser.add_argument('-t', dest='table', default=None, help='table to dump')
 parser.add_argument('-k', dest='keep_db_files', action='store_true', default=False, help='keep database files in temp')
+parser.add_argument('-l', dest='limit', type=int, default=200, help='limit to this many records')
 args = parser.parse_args(sys.argv[1:])
 
 DATETIME  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -193,7 +194,7 @@ for (db, table) in TABLES:
         print "</div>"
         continue
 
-    SQL = "select * from %s limit 200;" % table
+    SQL = "select * from %s limit %s;" % (table, args.limit)
     L = "%s/%s-%s" % (TEMP_DIR, db, TIMESTAMP)   # file in temp storage on desktop
     try:
         output = subprocess.check_output([SQLITE, "-html", "-header", L, SQL])
