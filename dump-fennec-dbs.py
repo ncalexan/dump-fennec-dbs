@@ -217,14 +217,22 @@ for db in COPIED.keys():
     L = "%s/%s-%s" % (TEMP_DIR, db, TIMESTAMP)   # file in temp storage on desktop
     local_files.append(L)
 
-if not args.keep_db_files:
-    for L in local_files:
+for L in local_files:
+    if not args.keep_db_files:
+        # either delete...
         try:
             os.remove(L)
         except OSError:
             if args.verbose:
                 print >> sys.stderr, "Couldn't remove %s" % L
-else:
-    if args.verbose:
-        for L in local_files:
+    else:
+        # or make sure it ends with '.sqlite'
+        if not 'sqlite' in L:
+            try:
+                os.rename(L, L + '.sqlite')
+                L = L + '.sqlite'
+            except OSError:
+                if args.verbose:
+                    print >> sys.stderr, "Couldn't rename %s" % L
+        if args.verbose:
             print >> sys.stderr, "Kept database file %s" % L
